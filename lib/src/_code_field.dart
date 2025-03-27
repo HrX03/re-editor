@@ -857,12 +857,6 @@ class _CodeFieldRender extends RenderBox implements MouseTrackerAnnotation {
       result.add(BoxHitTestEntry(this, position));
       final CodeLineRenderParagraph? paragraph = _findDisplayRenderParagraph(position + paintOffset);
       final InlineSpan? span = paragraph?.getSpanForPosition(position - paragraph.offset + paintOffset);
-      MouseCursor? spanCursor;
-      // ignore: invalid_use_of_protected_member
-      if (span is TextSpan && span.cursor != MouseCursor.defer) {
-        // ignore: invalid_use_of_protected_member
-        spanCursor = span.cursor;
-      }
       if (span is MouseTrackerAnnotationTextSpan) {
         result.add(HitTestEntry(_MouseTrackerAnnotationTextSpan(
           id: paragraph!.index,
@@ -876,8 +870,10 @@ class _CodeFieldRender extends RenderBox implements MouseTrackerAnnotation {
       }
       if (_chunkIndicators.where((chunk) => chunk.canExpand && chunk.region.contains(position)).isNotEmpty) {
         _cursor = SystemMouseCursors.click;
+      } else if (span is TextSpan && span.mouseCursor != MouseCursor.defer) {
+        _cursor = span.mouseCursor;
       } else {
-        _cursor = spanCursor ?? SystemMouseCursors.text;
+        _cursor = SystemMouseCursors.text;
       }
       hitTarget = true;
     }
