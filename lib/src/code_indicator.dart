@@ -10,6 +10,13 @@ typedef CodeIndicatorBuilder = Widget Function(
   CodeChunkController chunkController,
   CodeIndicatorValueNotifier notifier,
 );
+typedef CodeOverlayIndicatorBuilder = Widget Function(
+  BuildContext context,
+  CodeLineEditingController editingController,
+  CodeChunkController chunkController,
+  CodeIndicatorValueNotifier notifier,
+  Widget child,
+);
 
 class CodeIndicatorValue {
 

@@ -11,6 +11,7 @@ class _CodeEditable extends StatefulWidget {
   final GlobalKey editorKey;
   final String? hint;
   final CodeIndicatorBuilder? indicatorBuilder;
+  final CodeOverlayIndicatorBuilder? overlayIndicatorBuilder;
   final CodeScrollbarBuilder? scrollbarBuilder;
   final double? verticalScrollbarWidth;
   final double? horizontalScrollbarHeight;
@@ -52,6 +53,7 @@ class _CodeEditable extends StatefulWidget {
     required this.editorKey,
     this.hint,
     this.indicatorBuilder,
+    this.overlayIndicatorBuilder,
     this.scrollbarBuilder,
     this.verticalScrollbarWidth,
     this.horizontalScrollbarHeight,
@@ -234,15 +236,7 @@ class _CodeEditableState extends State<_CodeEditable> with AutomaticKeepAliveCli
           widget.chunkController,
           _codeIndicatorValueNotifier
         );
-        return Container(
-          decoration: BoxDecoration(
-            border: widget.border,
-            color: widget.backgroundColor,
-            borderRadius: widget.borderRadius,
-          ),
-          clipBehavior: widget.clipBehavior,
-          margin: widget.margin,
-          child: Row(
+        codeField = Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               if (indicator != null)
@@ -253,12 +247,28 @@ class _CodeEditableState extends State<_CodeEditable> with AutomaticKeepAliveCli
                 child: RepaintBoundary(
                   child: CompositedTransformTarget(
                     link: widget.toolbarLayerLink,
-                    child: codeField
+                    child: codeField,
                   ),
                 ),
               )
             ],
+          );
+        final Widget? overlayIndicator = widget.overlayIndicatorBuilder?.call(
+          context,
+          widget.controller,
+          widget.chunkController,
+          _codeIndicatorValueNotifier,
+          codeField,
+        );
+        return Container(
+          decoration: BoxDecoration(
+            border: widget.border,
+            color: widget.backgroundColor,
+            borderRadius: widget.borderRadius,
           ),
+          clipBehavior: widget.clipBehavior,
+          margin: widget.margin,
+          child: overlayIndicator ?? codeField,
         );
       },
       scrollbarBuilder: widget.scrollbarBuilder
@@ -295,10 +305,11 @@ class _CodeEditableState extends State<_CodeEditable> with AutomaticKeepAliveCli
       showCursorNotifier: _cursorController,
       floatingCursorNotifier: widget.floatingCursorController,
       onRenderParagraphsChanged: (paragraphs) {
-        _codeIndicatorValueNotifier.value = CodeIndicatorValue(
+        final value = CodeIndicatorValue(
           paragraphs: paragraphs,
           focusedIndex: widget.controller.selection.extentIndex
         );
+        _codeIndicatorValueNotifier.value = value;
       },
       selectionColor: widget.selectionColor,
       highlightColor: widget.highlightColor,

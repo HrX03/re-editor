@@ -123,7 +123,6 @@ class CodeEditorStyle {
 
   /// The code syntax highlighting rules and styles.
   final CodeHighlightTheme? codeTheme;
-
 }
 
 /// Creates a code editor.
@@ -168,6 +167,7 @@ class CodeEditor extends StatefulWidget {
     this.padding,
     this.margin,
     this.indicatorBuilder,
+    this.overlayIndicatorBuilder,
     this.scrollbarBuilder,
     this.verticalScrollbarWidth,
     this.horizontalScrollbarHeight,
@@ -222,6 +222,8 @@ class CodeEditor extends StatefulWidget {
   /// Use this to build your own indicator widget like line number widget.
   /// See [DefaultCodeLineNumber] and [DefaultCodeChunkIndicator].
   final CodeIndicatorBuilder? indicatorBuilder;
+
+  final CodeOverlayIndicatorBuilder? overlayIndicatorBuilder;
 
   /// Use this to build your own scroll bar widget.
   final CodeScrollbarBuilder? scrollbarBuilder;
@@ -480,6 +482,7 @@ class _CodeEditorState extends State<CodeEditor> {
       editorKey: _editorKey,
       hint: widget.hint,
       indicatorBuilder: widget.indicatorBuilder,
+      overlayIndicatorBuilder: widget.overlayIndicatorBuilder,
       scrollbarBuilder: widget.scrollbarBuilder,
       verticalScrollbarWidth: widget.verticalScrollbarWidth,
       horizontalScrollbarHeight: widget.horizontalScrollbarHeight,
@@ -488,8 +491,8 @@ class _CodeEditorState extends State<CodeEditor> {
       ),
       hintTextColor: widget.style?.hintTextColor,
       backgroundColor: widget.style?.backgroundColor,
-      selectionColor: widget.style?.selectionColor ?? selectionTheme.selectionColor ?? theme.colorScheme.primary.withOpacity(0.4),
-      highlightColor: widget.style?.highlightColor ?? selectionTheme.selectionColor ?? theme.colorScheme.primary.withOpacity(0.4),
+      selectionColor: widget.style?.selectionColor ?? selectionTheme.selectionColor ?? theme.colorScheme.primary.withValues(alpha: 0.4),
+      highlightColor: widget.style?.highlightColor ?? selectionTheme.selectionColor ?? theme.colorScheme.primary.withValues(alpha: 0.4),
       cursorColor:  widget.style?.cursorColor ?? selectionTheme.cursorColor ?? theme.colorScheme.primary,
       cursorLineColor: widget.style?.cursorLineColor,
       chunkIndicatorColor: widget.style?.chunkIndicatorColor,
@@ -535,11 +538,11 @@ class _CodeEditorState extends State<CodeEditor> {
       child = Focus(
         autofocus: autofocus,
         focusNode: _focusNode,
-        onKey: (node, event) {
-          if (event.isKeyPressed(LogicalKeyboardKey.backspace)) {
+        onKeyEvent: (node, event) {
+          if (HardwareKeyboard.instance.isLogicalKeyPressed(LogicalKeyboardKey.backspace)) {
             _editingController.deleteBackward();
             return KeyEventResult.handled;
-          } else if (event.isKeyPressed(LogicalKeyboardKey.enter)) {
+          } else if (HardwareKeyboard.instance.isLogicalKeyPressed(LogicalKeyboardKey.enter)) {
             _editingController.applyNewLine();
             return KeyEventResult.handled;
           }
