@@ -562,6 +562,7 @@ class _CodeFieldRender extends RenderBox implements MouseTrackerAnnotation {
     required Offset position,
     CodeLineSelection? anchor,
     bool allowOverflow = false,
+    required _SelectionChangeMode mode,
   }) {
     final Offset localPosition = globalToLocal(position);
     if (!allowOverflow && !isValidPointer(localPosition)) {
@@ -576,6 +577,17 @@ class _CodeFieldRender extends RenderBox implements MouseTrackerAnnotation {
     if (result == null) {
       return null;
     }
+
+    final modeChunk = switch(mode) {
+      _SelectionChangeMode.position => (result.offset, result.offset),
+      _SelectionChangeMode.word => (){
+        final word = selectWord(position: position);
+        if(word == null) return (result.offset, result.offset);
+        return (word.start, word.end);
+      }(),
+      _SelectionChangeMode.line => (0, _codes[result.index].length),
+    };
+
     if (anchor != null) {
       if (result.isBefore(anchor.start)) {
         return CodeLineSelection.fromPosition(
@@ -583,6 +595,7 @@ class _CodeFieldRender extends RenderBox implements MouseTrackerAnnotation {
         ).copyWith(
           baseIndex: anchor.end.index,
           baseOffset: anchor.end.offset,
+          extentOffset: modeChunk.$1,
           baseAffinity: anchor.end.affinity,
         );
       }
@@ -592,6 +605,7 @@ class _CodeFieldRender extends RenderBox implements MouseTrackerAnnotation {
         ).copyWith(
           baseIndex: anchor.start.index,
           baseOffset: anchor.start.offset,
+          extentOffset: modeChunk.$2,
           baseAffinity: anchor.start.affinity,
         );
       }
@@ -844,7 +858,9 @@ class _CodeFieldRender extends RenderBox implements MouseTrackerAnnotation {
       final CodeLineRenderParagraph? paragraph = _findDisplayRenderParagraph(position + paintOffset);
       final InlineSpan? span = paragraph?.getSpanForPosition(position - paragraph.offset + paintOffset);
       MouseCursor? spanCursor;
+      // ignore: invalid_use_of_protected_member
       if (span is TextSpan && span.cursor != MouseCursor.defer) {
+        // ignore: invalid_use_of_protected_member
         spanCursor = span.cursor;
       }
       if (span is MouseTrackerAnnotationTextSpan) {
@@ -1416,7 +1432,7 @@ class _CodeCursorLinePainter extends _CodeFieldExtraPainter {
 
   @override
   void paint(Canvas canvas, Size size, _CodeFieldRender render) {
-    if (_color == null || _color == Colors.transparent || _color!.alpha == 0) {
+    if (_color == null || _color == Colors.transparent || _color!.a == 0) {
       return;
     }
     if (!_selection.isCollapsed) {
@@ -1470,7 +1486,7 @@ abstract class _CodeFieldSelectionsPainter extends _CodeFieldExtraPainter {
 
   @override
   void paint(Canvas canvas, Size size, _CodeFieldRender render) {
-    if (_color == Colors.transparent || _color.alpha == 0) {
+    if (_color == Colors.transparent || _color.a == 0) {
       return;
     }
     final List<CodeLineRenderParagraph> paragraphs = render.displayParagraphs;
@@ -1630,7 +1646,7 @@ class _CodeFieldCursorPainter extends _CodeFieldExtraPainter {
 
   @override
   void paint(Canvas canvas, Size size, _CodeFieldRender render) {
-    if (!_visible || !_willDraw || _color == Colors.transparent || _color.alpha == 0) {
+    if (!_visible || !_willDraw || _color == Colors.transparent || _color.a == 0) {
       return;
     }
     final CodeLineRenderParagraph? paragraph = render.findDisplayParagraphByLineIndex(_position.index);
@@ -1712,7 +1728,7 @@ class _CodeFieldFloatingCursorPainter extends _CodeFieldExtraPainter {
 
   @override
   void paint(Canvas canvas, Size size, _CodeFieldRender render) {
-    if (!_position.isActive() || _color == Colors.transparent || _color.alpha == 0) {
+    if (!_position.isActive() || _color == Colors.transparent || _color.a == 0) {
       return;
     }
     _drawFloatingCaret(canvas, _position.floatingCursorOffset!, size);

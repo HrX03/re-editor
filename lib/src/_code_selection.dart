@@ -30,6 +30,7 @@ class _CodeSelectionGestureDetectorState extends State<_CodeSelectionGestureDete
   bool _dragging = false;
   DateTime? _pointerTapTimestamp;
   Offset? _pointerTapPosition;
+  int _consequentTapCount = 0;
   bool? _handleByNextEvent;
   bool _longPressOnSelection = false;
   CodeLineSelection? _anchorSelection;
@@ -179,7 +180,7 @@ class _CodeSelectionGestureDetectorState extends State<_CodeSelectionGestureDete
     final DateTime now = DateTime.now();
     if (_pointerTapTimestamp != null && (now.millisecondsSinceEpoch - _pointerTapTimestamp!.millisecondsSinceEpoch) <
       kDoubleTapTimeout.inMilliseconds && _pointerTapPosition != null && _pointerTapPosition!.isSamePosition(position)) {
-      _onDoubleTap(position);
+      _onConsequentTap(position);
       widget.selectionOverlayController.showHandle(context);
       widget.selectionOverlayController.showToolbar(context, position);
     } else {
@@ -209,6 +210,14 @@ class _CodeSelectionGestureDetectorState extends State<_CodeSelectionGestureDete
     widget.selectionOverlayController.hideToolbar();
   }
 
+  _SelectionChangeMode get _currentSelectionMode {
+    return switch(_consequentTapCount) {
+      0 => _SelectionChangeMode.position,
+      final v when v % 2 != 0 => _SelectionChangeMode.word,
+      _ => _SelectionChangeMode.line,
+    };
+  }
+  
   void _onDesktopTapDown(Offset position) {
     if (widget.controller.isComposing) {
       return;
@@ -216,16 +225,19 @@ class _CodeSelectionGestureDetectorState extends State<_CodeSelectionGestureDete
     final DateTime now = DateTime.now();
     if (_pointerTapTimestamp != null && (now.millisecondsSinceEpoch - _pointerTapTimestamp!.millisecondsSinceEpoch) <
       kDoubleTapTimeout.inMilliseconds && _pointerTapPosition != null && _pointerTapPosition!.isSamePosition(position)) {
-      _onDoubleTap(position);
+        _consequentTapCount++;
+      _pointerTapTimestamp = now;
+      _onConsequentTap(position);
     } else {
       if (widget.controller.selection.baseOffset != -1) {
         if (_isShiftPressed) {
-          _extendSelection(position, _SelectionChangedCause.tapDown);
+          _extendSelection(position, _SelectionChangedCause.tapDown, _SelectionChangeMode.position);
           return;
         }
       }
       _pointerTapTimestamp = now;
       _pointerTapPosition = position;
+      _consequentTapCount = 0;
       _selectPosition(position, _SelectionChangedCause.tapDown);
     }
   }
@@ -242,32 +254,48 @@ class _CodeSelectionGestureDetectorState extends State<_CodeSelectionGestureDete
     _selectPosition(position, _SelectionChangedCause.tapUp);
   }
 
-  void _onDoubleTap(Offset position) {
-    final CodeLineRange? range = render.selectWord(
-      position: position,
-    );
-    if (range == null) {
-      return;
-    }
-    final CodeLineSelection selection;
-    if (_isShiftPressed && widget.controller.selection.base.offset <= range.start) {
-      selection = widget.controller.selection.copyWith(
-        extentIndex: range.index,
-        extentOffset: range.end
+  void _onConsequentTap(Offset position) {
+    if(_consequentTapCount % 2 != 0) {
+      final CodeLineRange? range = render.selectWord(
+        position: position,
       );
-    } else if (_isShiftPressed && widget.controller.selection.base.offset >= range.end) {
-      selection = widget.controller.selection.copyWith(
-        extentIndex: range.index,
-        extentOffset: range.start
-      );
+      if (range == null) {
+        return;
+      }
+      final CodeLineSelection selection;
+      if (_isShiftPressed && widget.controller.selection.base.offset <= range.start) {
+        selection = widget.controller.selection.copyWith(
+          extentIndex: range.index,
+          extentOffset: range.end
+        );
+      } else if (_isShiftPressed && widget.controller.selection.base.offset >= range.end) {
+        selection = widget.controller.selection.copyWith(
+          extentIndex: range.index,
+          extentOffset: range.start
+        );
+      } else {
+        selection = CodeLineSelection.fromRange(
+          range: range
+        );
+      }
+      widget.controller.selection = selection;
+      widget.controller.makeCursorVisible();
+      _anchorSelection = selection;
     } else {
-      selection = CodeLineSelection.fromRange(
-        range: range
+      final int base = widget.controller.selection.base.index;
+      if (base < 0 || base >= widget.controller.codeLines.length) {
+        return;
+      }
+      final selection = widget.controller.selection.copyWith(
+        baseIndex: base,
+        baseOffset: 0,
+        extentIndex: base,
+        extentOffset: widget.controller.codeLines[base].length,
       );
+      widget.controller.selection = selection;
+      widget.controller.makeCursorVisible();
+      _anchorSelection = selection;
     }
-    widget.controller.selection = selection;
-    widget.controller.makeCursorVisible();
-    _anchorSelection = selection;
   }
 
   void _onDrag(DragUpdateDetails details) {
@@ -282,7 +310,7 @@ class _CodeSelectionGestureDetectorState extends State<_CodeSelectionGestureDete
       return;
     }
     _dragPosition = details.globalPosition;
-    _extendSelection(details.globalPosition, _SelectionChangedCause.drag);
+    _extendSelection(details.globalPosition, _SelectionChangedCause.drag, _currentSelectionMode);
   }
 
   void _onLongPressMove(LongPressMoveUpdateDetails details) {
@@ -293,7 +321,7 @@ class _CodeSelectionGestureDetectorState extends State<_CodeSelectionGestureDete
       return;
     }
     _dragPosition = details.globalPosition;
-    _extendSelection(details.globalPosition, _SelectionChangedCause.drag);
+    _extendSelection(details.globalPosition, _SelectionChangedCause.drag, _SelectionChangeMode.position);
   }
 
   void _onSecondaryTapDown(BuildContext context, TapDownDetails details) {
@@ -305,7 +333,7 @@ class _CodeSelectionGestureDetectorState extends State<_CodeSelectionGestureDete
     widget.selectionOverlayController.showToolbar(context, details.globalPosition);
   }
 
-  void _extendSelection(Offset offset, _SelectionChangedCause cause) {
+  void _extendSelection(Offset offset, _SelectionChangedCause cause, _SelectionChangeMode mode) {
     if (cause == _SelectionChangedCause.tapDown || cause == _SelectionChangedCause.tapUp) {
       if (expandChunkIfNeeded(render.chunkIndicatorHitIndex(offset))) {
         return;
@@ -316,6 +344,7 @@ class _CodeSelectionGestureDetectorState extends State<_CodeSelectionGestureDete
       position: offset,
       anchor: _isMobile ? null : _anchorSelection,
       allowOverflow: cause == _SelectionChangedCause.drag,
+      mode: mode,
     );
     if (selection == null) {
       return;
@@ -380,7 +409,7 @@ class _CodeSelectionGestureDetectorState extends State<_CodeSelectionGestureDete
       }
       if (_dragging) {
         render.autoScrollWhenDragging(_dragPosition!);
-        _extendSelection(_dragPosition!, _SelectionChangedCause.drag);
+        _extendSelection(_dragPosition!, _SelectionChangedCause.drag, _currentSelectionMode);
       }
       _autoScrollWhenDragging();
     }));
@@ -410,6 +439,8 @@ enum _SelectionChangedCause {
   drag,
 
 }
+
+enum _SelectionChangeMode { position, word, line }
 
 abstract class _SelectionOverlayController {
 
